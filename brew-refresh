@@ -53,9 +53,9 @@ trap _cleanup EXIT INT TERM HUP
 # ── Draw initial UI ─────────────────────────────────────────────────────────────
 draw_ui() {
   printf '\n'
-  printf "  ${BLD}${CYN}╔═══════════════════════════════════╗${RST}\n"
-  printf "  ${BLD}${CYN}║  ☕ Homebrew Daily Refresh ♻   ║${RST}\n"
-  printf "  ${BLD}${CYN}╚═══════════════════════════════════╝${RST}\n"
+  printf "  ${BLD}${CYN}╔══════════════════════════════════╗${RST}\n"
+  printf "  ${BLD}${CYN}║    ☕ Homebrew Daily Refresh ♻    ║${RST}\n"
+  printf "  ${BLD}${CYN}╚══════════════════════════════════╝${RST}\n"
   printf '\n'
   for name in "${STEPS[@]}"; do
     printf "  ${DIM}${CIRC} %s${RST}\n" "$name"
