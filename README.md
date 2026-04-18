@@ -1,4 +1,4 @@
-# Ferment
+# Homebrew → Ferment
 
 [![License: CC0-1.0](https://img.shields.io/badge/License-CC0_1.0-lightgrey.svg)](http://creativecommons.org/publicdomain/zero/1.0)
 
@@ -7,10 +7,8 @@ A daily script to keep [Homebrew](https://brew.sh/) fresh!
 ## How to install
 
 ```bash
-cp ferment /usr/local/bin/ferment
-
-# or if you use ~/bin:
-cp ferment ~/bin/ferment
+brew tap nschneble/ferment
+brew install ferment
 ```
 
 Then just run `ferment` from anywhere.
