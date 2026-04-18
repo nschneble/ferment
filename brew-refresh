@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# brew-refresh — one-click Homebrew daily refresh with terminal UI
+
+set -uo pipefail
+
+# ── Colors & symbols ────────────────────────────────────────────────────────────
+if [[ -t 1 ]]; then
+  RED=$'\033[31m' GRN=$'\033[32m' YLW=$'\033[33m' CYN=$'\033[36m'
+  BLD=$'\033[1m'  DIM=$'\033[2m'  RST=$'\033[0m'
+else
+  RED='' GRN='' YLW='' CYN='' BLD='' DIM='' RST=''
+fi
+
+SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+TICK=✓  CROSS=✗  CIRC=○
+
+# ── Layout constants ────────────────────────────────────────────────────────────
+# After draw_ui the terminal looks like:
+#
+#   (blank)
+#   ╔═══════════════════════════════╗
+#   ║     Homebrew Daily Refresh    ║
+#   ╚═══════════════════════════════╝
+#   (blank)
+#   step 0                           ← (NS - 0 + 1) = 5 lines above cursor
+#   step 1                           ← 4
+#   step 2                           ← 3
+#   step 3                           ← 2
+#   (blank)
+#   [status line]                    ← cursor here
+
+STEPS=(Update Upgrade Cleanup Doctor)
+NS=${#STEPS[@]}
+
+# Lines from status/cursor to step index i (0-based)
+step_up() { echo $(( NS - $1 + 1 )); }
+
+_spinner_pid=""
+
+# ── Cursor helpers ──────────────────────────────────────────────────────────────
+hide_cursor() { printf '\033[?25l'; }
+show_cursor()  { printf '\033[?25h'; }
+
+# ── Cleanup on exit ─────────────────────────────────────────────────────────────
+_cleanup() {
+  stop_spinner
+  show_cursor
+  # Ensure we end on a new line
+  printf '\n'
+}
+trap _cleanup EXIT INT TERM HUP
+
+# ── Draw initial UI ─────────────────────────────────────────────────────────────
+draw_ui() {
+  printf '\n'
+  printf "  ${BLD}${CYN}╔═══════════════════════════════╗${RST}\n"
+  printf "  ${BLD}${CYN}║     Homebrew Daily Refresh     ║${RST}\n"
+  printf "  ${BLD}${CYN}╚═══════════════════════════════╝${RST}\n"
+  printf '\n'
+  for name in "${STEPS[@]}"; do
+    printf "  ${DIM}${CIRC} %s${RST}\n" "$name"
+  done
+  printf '\n'
+  printf "  ${DIM}Initializing...${RST}"
+}
+
+# Write text onto a step line then return cursor to status line.
+# Usage: write_step <idx> <formatted-text>
+write_step() {
+  local idx=$1; shift
+  local up; up=$(step_up "$idx")
+  printf '\033[%dA\033[2K\r  %b\033[%dB\033[2K\r' "$up" "$*" "$up"
+}
+
+set_status() {
+  printf '\033[2K\r  %b' "$*"
+}
+
+mark_run()  { write_step "$1" "${YLW}${SPIN[0]} ${STEPS[$1]}${RST}"; }
+mark_done() { write_step "$1" "${GRN}${TICK} ${STEPS[$1]}${RST}${DIM}  $2${RST}"; }
+mark_fail() { write_step "$1" "${RED}${CROSS} ${STEPS[$1]}${RST}"; }
+
+# ── Background spinner ──────────────────────────────────────────────────────────
+# Writes directly to /dev/tty so it doesn't corrupt command-substitution output.
+start_spinner() {
+  local idx=$1 msg="${2:-}"
+  local up name
+  up=$(step_up "$idx")
+  name="${STEPS[$idx]}"
+  (
+    local i=0
+    while true; do
+      local f="${SPIN[$((i % ${#SPIN[@]}))]}"
+      printf '\033[%dA\033[2K\r  \033[33m%s %s\033[2m  %s\033[0m\033[%dB\033[2K\r' \
+        "$up" "$f" "$name" "$msg" "$up" > /dev/tty
+      sleep 0.08
+      i=$(( i + 1 ))
+    done
+  ) &
+  _spinner_pid=$!
+}
+
+stop_spinner() {
+  if [[ -n "$_spinner_pid" ]]; then
+    kill "$_spinner_pid" 2>/dev/null || true
+    wait "$_spinner_pid" 2>/dev/null || true
+    _spinner_pid=""
+  fi
+}
+
+# ── Brew runner ─────────────────────────────────────────────────────────────────
+run_brew() { brew "$@" 2>&1; }
+
+# ── Update loop ─────────────────────────────────────────────────────────────────
+do_update() {
+  local pass=0 out changed=true
+
+  while $changed; do
+    pass=$(( pass + 1 ))
+    stop_spinner; start_spinner 0 "pass $pass"
+    set_status "${DIM}brew update (pass $pass)...${RST}"
+    out=$(run_brew update)
+    # "Already up-to-date." means nothing fetched
+    if [[ "$out" == *"Already up-to-date"* ]]; then
+      changed=false
+    fi
+  done
+
+  stop_spinner
+  local label; label="($(plural "$pass" pass passes))"
+  mark_done 0 "$label"
+}
+
+# ── Upgrade loop ────────────────────────────────────────────────────────────────
+do_upgrade() {
+  local pass=0 out changed=true
+
+  while $changed; do
+    pass=$(( pass + 1 ))
+    stop_spinner; start_spinner 1 "pass $pass"
+    set_status "${DIM}brew upgrade (pass $pass)...${RST}"
+    out=$(run_brew upgrade)
+    # "==> Upgrading N outdated packages:" indicates actual upgrades happened
+    if echo "$out" | grep -qE '^==> Upgrading [0-9]'; then
+      changed=true
+    else
+      changed=false
+    fi
+  done
+
+  stop_spinner
+  local label; label="($(plural "$pass" pass passes))"
+  mark_done 1 "$label"
+}
+
+# ── Cleanup loop ────────────────────────────────────────────────────────────────
+do_cleanup() {
+  local pass=0 out changed=true
+
+  while $changed; do
+    pass=$(( pass + 1 ))
+    stop_spinner; start_spinner 2 "pass $pass"
+    set_status "${DIM}brew cleanup (pass $pass)...${RST}"
+    out=$(run_brew cleanup)
+    # "Removing:" lines indicate files were deleted
+    if echo "$out" | grep -qE '^Removing:|^==> Removing'; then
+      changed=true
+    else
+      changed=false
+    fi
+  done
+
+  stop_spinner
+  local label; label="($(plural "$pass" pass passes))"
+  mark_done 2 "$label"
+}
+
+# ── Doctor check ────────────────────────────────────────────────────────────────
+do_doctor() {
+  start_spinner 3 ""
+  set_status "${DIM}brew doctor...${RST}"
+
+  local out rc=0
+  out=$(run_brew doctor) || rc=$?
+
+  stop_spinner
+
+  if [[ $rc -eq 0 ]] || [[ "$out" == *"Your system is ready to brew"* ]]; then
+    mark_done 3 ""
+    set_status "${GRN}Your system is ready to brew.${RST}"
+    printf '\n'
+    exit 0
+  else
+    mark_fail 3
+    set_status "${RED}Doctor found issues — see below.${RST}"
+    printf '\n\n'
+    printf '%s\n' "$out" | sed 's/^/  /'
+    printf '\n'
+    exit 1
+  fi
+}
+
+# ── Helpers ─────────────────────────────────────────────────────────────────────
+plural() {
+  local n=$1 singular=$2 plural_form="${3:-${2}s}"
+  if [[ $n -eq 1 ]]; then echo "$n $singular"; else echo "$n $plural_form"; fi
+}
+
+# ── Main ────────────────────────────────────────────────────────────────────────
+hide_cursor
+draw_ui
+
+do_update
+do_upgrade
+do_cleanup
+do_doctor
