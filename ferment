@@ -14,6 +14,8 @@ fi
 SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 TICK=✓  CROSS=✗  CIRC=○
 
+MAX_PASSES=3
+
 # ── Layout constants ────────────────────────────────────────────────────────────
 # After draw_ui the terminal looks like:
 #
@@ -115,7 +117,7 @@ run_brew() { brew "$@" 2>&1; }
 do_update() {
   local pass=0 out changed=true
 
-  while $changed; do
+  while $changed && (( pass < MAX_PASSES )); do
     pass=$(( pass + 1 ))
     stop_spinner; start_spinner 0 ""
     out=$(run_brew update)
@@ -133,7 +135,7 @@ do_update() {
 do_upgrade() {
   local pass=0 out changed=true
 
-  while $changed; do
+  while $changed && (( pass < MAX_PASSES )); do
     pass=$(( pass + 1 ))
     stop_spinner; start_spinner 1 ""
     out=$(run_brew upgrade)
@@ -153,7 +155,7 @@ do_upgrade() {
 do_cleanup() {
   local pass=0 out changed=true
 
-  while $changed; do
+  while $changed && (( pass < MAX_PASSES )); do
     pass=$(( pass + 1 ))
     stop_spinner; start_spinner 2 ""
     out=$(run_brew cleanup)
