@@ -14,6 +14,8 @@ fi
 SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 TICK=✓  CROSS=✗  CIRC=○
 
+MAX_PASSES=3
+
 # ── Layout constants ────────────────────────────────────────────────────────────
 # After draw_ui the terminal looks like:
 #
@@ -52,10 +54,10 @@ trap _cleanup EXIT INT TERM HUP
 
 # ── Draw initial UI ─────────────────────────────────────────────────────────────
 draw_ui() {
-  printf '\n'
-  printf "  ${BLD}${CYN}╔══════════════════════════════════╗${RST}\n"
-  printf "  ${BLD}${CYN}║    ☕ Homebrew Daily Refresh ♻    ║${RST}\n"
-  printf "  ${BLD}${CYN}╚══════════════════════════════════╝${RST}\n"
+  printf '\033[2J\033[H'
+  printf "  ${BLD}${CYN}╔══════════════════════════════╗${RST}\n"
+  printf "  ${BLD}${CYN}║    Homebrew Daily Refresh    ║${RST}\n"
+  printf "  ${BLD}${CYN}╚══════════════════════════════╝${RST}\n"
   printf '\n'
   for name in "${STEPS[@]}"; do
     printf "  ${DIM}${CIRC} %s${RST}\n" "$name"
@@ -115,10 +117,9 @@ run_brew() { brew "$@" 2>&1; }
 do_update() {
   local pass=0 out changed=true
 
-  while $changed; do
+  while $changed && (( pass < MAX_PASSES )); do
     pass=$(( pass + 1 ))
-    stop_spinner; start_spinner 0 "pass $pass"
-    set_status "${DIM}brew update (pass $pass)...${RST}"
+    stop_spinner; start_spinner 0 ""
     out=$(run_brew update)
     # "Already up-to-date." means nothing fetched
     if [[ "$out" == *"Already up-to-date"* ]]; then
@@ -134,10 +135,9 @@ do_update() {
 do_upgrade() {
   local pass=0 out changed=true
 
-  while $changed; do
+  while $changed && (( pass < MAX_PASSES )); do
     pass=$(( pass + 1 ))
-    stop_spinner; start_spinner 1 "pass $pass"
-    set_status "${DIM}brew upgrade (pass $pass)...${RST}"
+    stop_spinner; start_spinner 1 ""
     out=$(run_brew upgrade)
     # "==> Upgrading N outdated packages:" indicates actual upgrades happened
     if echo "$out" | grep -qE '^==> Upgrading [0-9]'; then
@@ -155,10 +155,9 @@ do_upgrade() {
 do_cleanup() {
   local pass=0 out changed=true
 
-  while $changed; do
+  while $changed && (( pass < MAX_PASSES )); do
     pass=$(( pass + 1 ))
-    stop_spinner; start_spinner 2 "pass $pass"
-    set_status "${DIM}brew cleanup (pass $pass)...${RST}"
+    stop_spinner; start_spinner 2 ""
     out=$(run_brew cleanup)
     # "Removing:" lines indicate files were deleted
     if echo "$out" | grep -qE '^Removing:|^==> Removing'; then
