@@ -53,9 +53,9 @@ trap _cleanup EXIT INT TERM HUP
 # ── Draw initial UI ─────────────────────────────────────────────────────────────
 draw_ui() {
   printf '\n'
-  printf "  ${BLD}${CYN}╔═══════════════════════════════╗${RST}\n"
-  printf "  ${BLD}${CYN}║     Homebrew Daily Refresh     ║${RST}\n"
-  printf "  ${BLD}${CYN}╚═══════════════════════════════╝${RST}\n"
+  printf "  ${BLD}${CYN}╔═══════════════════════════════════╗${RST}\n"
+  printf "  ${BLD}${CYN}║  ☕ Homebrew Daily Refresh ♻   ║${RST}\n"
+  printf "  ${BLD}${CYN}╚═══════════════════════════════════╝${RST}\n"
   printf '\n'
   for name in "${STEPS[@]}"; do
     printf "  ${DIM}${CIRC} %s${RST}\n" "$name"
@@ -127,8 +127,7 @@ do_update() {
   done
 
   stop_spinner
-  local label; label="($(plural "$pass" pass passes))"
-  mark_done 0 "$label"
+  mark_done 0 ""
 }
 
 # ── Upgrade loop ────────────────────────────────────────────────────────────────
@@ -149,8 +148,7 @@ do_upgrade() {
   done
 
   stop_spinner
-  local label; label="($(plural "$pass" pass passes))"
-  mark_done 1 "$label"
+  mark_done 1 ""
 }
 
 # ── Cleanup loop ────────────────────────────────────────────────────────────────
@@ -171,8 +169,7 @@ do_cleanup() {
   done
 
   stop_spinner
-  local label; label="($(plural "$pass" pass passes))"
-  mark_done 2 "$label"
+  mark_done 2 ""
 }
 
 # ── Doctor check ────────────────────────────────────────────────────────────────
@@ -198,12 +195,6 @@ do_doctor() {
     printf '\n'
     exit 1
   fi
-}
-
-# ── Helpers ─────────────────────────────────────────────────────────────────────
-plural() {
-  local n=$1 singular=$2 plural_form="${3:-${2}s}"
-  if [[ $n -eq 1 ]]; then echo "$n $singular"; else echo "$n $plural_form"; fi
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────────
